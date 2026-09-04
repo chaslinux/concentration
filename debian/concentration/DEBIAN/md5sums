@@ -1,0 +1,16 @@
+2f60985fb8d92e2c3e1c95a8d1b98219  usr/bin/concentration
+3059c895514c9d59333f894fd556e21b  usr/lib/concentration/assets/sounds/flip.wav
+9cf8234751fd31b6fd6e6153a0c83fb8  usr/lib/concentration/assets/sounds/match.wav
+42566844555e1eff10cc6215d4c13ee7  usr/lib/concentration/assets/sounds/mismatch.wav
+6aa36ca9bc66783c035384bcc50aa023  usr/lib/concentration/assets/sounds/win.wav
+d7604b9993459ff5328a8a4c1b43d04b  usr/lib/concentration/audio.py
+ff68cf22a270cc19bc1112d1406b01b6  usr/lib/concentration/config.py
+d7b9b9df56f367dbbafa1ff34b58010e  usr/lib/concentration/main.py
+4894f346c0832c258fc7933d498df289  usr/lib/concentration/scores.py
+fb87dbe6f8e7f4d75b84284c31bc64bf  usr/lib/concentration/style.css
+9169c8bd66a8406ce8c95a1bdf8f60d8  usr/lib/concentration/ui/game_board.py
+436c05892c5c3f201fb166052e8ba02f  usr/lib/concentration/ui/high_scores.py
+be742d38721b47eecd85a947833fc1fd  usr/lib/concentration/ui/menu.py
+7b495ed1dcdcb990e9a75744d3e81e20  usr/share/applications/concentration.desktop
+4dcac33d5399afa9866b231e9f6f026e  usr/share/doc/concentration/changelog.Debian.gz
+5cff6bd71361a5f4a650e1f152bd2b14  usr/share/doc/concentration/copyright

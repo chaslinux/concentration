@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# The application is pure Python; no compilation is required.
+
+override_dh_auto_install:
+	mkdir -p debian/concentration/usr/lib/concentration
+	mkdir -p debian/concentration/usr/bin
+	mkdir -p debian/concentration/usr/share/applications
+
+	cp -a main.py audio.py config.py scores.py style.css ui assets \
+		debian/concentration/usr/lib/concentration/
+
+	cp debian/launcher \
+		debian/concentration/usr/bin/concentration
+
+	cp debian/concentration.desktop \
+		debian/concentration/usr/share/applications/concentration.desktop
+
+	find debian/concentration -type d -name __pycache__ -prune -exec rm -rf {} +
+	find debian/concentration -type f -name '*.pyc' -delete
+

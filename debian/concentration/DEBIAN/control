@@ -1,0 +1,16 @@
+Package: concentration
+Version: 1.0.0-1
+Architecture: all
+Maintainer: chaslinux <chaslinux@gmail.com>
+Installed-Size: 162
+Depends: python3, python3-gi, python3-gst-1.0, python3-cryptography, gir1.2-gtk-3.0, gir1.2-rsvg-2.0, gir1.2-gstreamer-1.0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, papirus-icon-theme
+Section: games
+Priority: optional
+Homepage: https://github.com/chaslinux/concentration
+Description: GTK concentration memory game
+ Concentration is a simple memory matching game written in Python
+ using GTK 3.
+ .
+ The game uses icons from the Papirus icon theme as card faces,
+ provides sound effects using GStreamer, and maintains an encrypted
+ local high-score list.

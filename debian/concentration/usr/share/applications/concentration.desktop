@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Concentration
+Comment=GTK concentration memory game
+Exec=concentration
+Icon=applications-games
+Terminal=false
+Type=Application
+Categories=Game;BoardGame;
+Keywords=memory;cards;concentration;matching;
+StartupNotify=true
+

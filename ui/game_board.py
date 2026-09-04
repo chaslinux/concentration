@@ -50,8 +50,16 @@ class ConcentrationBoard(Gtk.Box):
         
         self.cards = [Card(icon, i) for i, icon in enumerate(card_icons)]
         
-        # Header UI
+        # Header UI Bar
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        header.set_margin_left(15)
+        header.set_margin_right(15)
+        header.set_margin_top(10)
+        
+        # Exit Game Button
+        btn_exit = Gtk.Button(label=" Exit Game ")
+        btn_exit.connect("clicked", self.on_exit_clicked)
+        header.pack_start(btn_exit, False, False, 0)
         
         self.lbl_score = Gtk.Label()
         self.lbl_score.set_alignment(0.5, 0.5)
@@ -63,7 +71,7 @@ class ConcentrationBoard(Gtk.Box):
         
         header.pack_start(self.lbl_score, True, True, 10)
         header.pack_start(self.lbl_timer, True, True, 10)
-        self.pack_start(header, False, False, 10)
+        self.pack_start(header, False, False, 0)
         
         # Drawing Area
         self.drawing_area = Gtk.DrawingArea()
@@ -79,6 +87,19 @@ class ConcentrationBoard(Gtk.Box):
         # Start Countdown Loop
         self.timer_source_id = GLib.timeout_add_seconds(1, self.on_tick)
         self.drawing_area.grab_focus()
+
+    def cleanup_timers(self):
+        if hasattr(self, 'timer_source_id') and self.timer_source_id:
+            GLib.source_remove(self.timer_source_id)
+            self.timer_source_id = None
+            
+        if self.flip_timer_id:
+            GLib.source_remove(self.flip_timer_id)
+            self.flip_timer_id = None
+
+    def on_exit_clicked(self, button):
+        self.cleanup_timers()
+        self.main_window.show_menu()
 
     def update_score(self, points):
         self.score += points
@@ -101,15 +122,14 @@ class ConcentrationBoard(Gtk.Box):
     def on_draw(self, widget, cr):
         alloc = widget.get_allocation()
         
-        # Calculate grid bounds
         grid_w = alloc.width - (2 * self.margin_pad)
         grid_h = alloc.height - (2 * self.margin_pad)
         
         card_w = grid_w / config.COLS
         card_h = grid_h / config.ROWS
         
-        # Soft Green Application Background
-        cr.set_source_rgb(0.16, 0.30, 0.21)
+        # Dark forest green canvas backdrop
+        cr.set_source_rgb(0.08, 0.17, 0.11)
         cr.paint()
         
         for i, card in enumerate(self.cards):
@@ -122,7 +142,6 @@ class ConcentrationBoard(Gtk.Box):
             w = card_w - self.card_gap
             h = card_h - self.card_gap
             
-            # Card Base Shape
             cr.rectangle(x, y, w, h)
             
             if card.is_flipped or card.is_matched:
@@ -130,15 +149,12 @@ class ConcentrationBoard(Gtk.Box):
                 cr.set_source_rgb(0.95, 0.61, 0.07)
                 cr.fill_preserve()
                 
-                # Darker yellow border
                 cr.set_source_rgb(0.75, 0.45, 0.05)
                 cr.set_line_width(2)
                 cr.stroke()
                 
-                # Large, Centered SVG Icon
                 if card.svg_handle:
                     cr.save()
-                    
                     dim_obj = card.svg_handle.get_dimensions()
                     svg_w, svg_h = dim_obj.width, dim_obj.height
                     
@@ -153,14 +169,12 @@ class ConcentrationBoard(Gtk.Box):
                         cr.translate(offset_x, offset_y)
                         cr.scale(scale, scale)
                         card.svg_handle.render_cairo(cr)
-                        
                     cr.restore()
             else:
-                # Back side background: Forest green
+                # Forest green back face
                 cr.set_source_rgb(0.15, 0.55, 0.30)
                 cr.fill_preserve()
                 
-                # Hatch Marks Overlay
                 cr.save()
                 cr.clip()
                 cr.set_source_rgba(0.08, 0.35, 0.18, 0.6)
@@ -175,7 +189,6 @@ class ConcentrationBoard(Gtk.Box):
                 cr.set_line_width(2)
                 cr.stroke()
             
-            # Keyboard Focus Highlight
             if i == self.focused_index and not card.is_hidden:
                 cr.rectangle(x - 2, y - 2, w + 4, h + 4)
                 cr.set_source_rgb(1.0, 1.0, 1.0)
@@ -201,14 +214,12 @@ class ConcentrationBoard(Gtk.Box):
                 c2.is_matched = True
                 self.update_score(100 + self.time_remaining)
                 
-                # Instantly mark matched cards hidden
                 c1.is_hidden = True
                 c2.is_hidden = True
                 self.selected_cards = []
                 self.lock_input = False
                 self.drawing_area.queue_draw()
 
-                # Trigger victory dialog immediately when all are matched
                 if all(c.is_hidden for c in self.cards):
                     GLib.idle_add(self.end_game, "🎉 YOU WIN!")
             else:
@@ -261,33 +272,34 @@ class ConcentrationBoard(Gtk.Box):
         self.drawing_area.queue_draw()
 
     def end_game(self, title_text):
+        self.cleanup_timers()
+        
         dialog = Gtk.Dialog(title="Game Finished", parent=self.main_window, flags=0)
         dialog.set_default_size(360, 240)
         
-        btn_save = dialog.add_button("Save Score", Gtk.ResponseType.OK)
+        style_context = dialog.get_style_context()
+        style_context.add_class("dialog")
+        
+        dialog.add_button("Save Score", Gtk.ResponseType.OK)
         dialog.set_default_response(Gtk.ResponseType.OK)
         
         box = dialog.get_content_area()
         box.set_spacing(12)
         box.set_border_width(20)
         
-        # Heading Label
         lbl_title = Gtk.Label()
         lbl_title.set_markup(f"<span font='22' weight='bold' foreground='#2ecc71'>{title_text}</span>")
         box.pack_start(lbl_title, False, False, 0)
         
-        # Final Score Label
         lbl_score = Gtk.Label()
         lbl_score.set_markup(f"<span font='14' weight='bold'>Final Score: <span foreground='#f39c12'>{self.score}</span></span>")
         box.pack_start(lbl_score, False, False, 0)
         
-        # Instructions
         lbl_prompt = Gtk.Label()
         lbl_prompt.set_markup("<span font='11'>Enter your <b>3 Initials</b> for the Leaderboard:</span>")
         lbl_prompt.set_line_wrap(True)
         box.pack_start(lbl_prompt, False, False, 4)
         
-        # 3-Letter Entry Input
         entry = Gtk.Entry()
         entry.set_max_length(3)
         entry.set_alignment(0.5)

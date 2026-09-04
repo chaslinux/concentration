@@ -1,0 +1,56 @@
+/* Base Window & Widget Font */
+window, dialog, label, button, entry {
+    font-family: "Sans", "Segoe UI", "Ubuntu", sans-serif;
+}
+
+/* Primary Action Buttons */
+button {
+    background-image: none;
+    background-color: #2e5d3c;
+    color: #ffffff;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 1px solid #3a754c;
+    padding: 8px 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 150ms ease-in-out;
+}
+
+/* Button Hover State */
+button:hover {
+    background-color: #387049;
+    border-color: #48935f;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Button Active / Pressed State */
+button:active {
+    background-color: #23482e;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Input Entry (3-Initials Input) */
+entry {
+    background-color: #1a3322;
+    color: #f1c40f;
+    font-weight: bold;
+    font-size: 18px;
+    border: 2px solid #3a754c;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+entry:focus {
+    border-color: #f39c12;
+    background-color: #1f3d29;
+}
+
+/* Dialog Window Polish */
+dialog {
+    background-color: #1b3323;
+    color: #ffffff;
+}
+
+dialog label {
+    color: #ffffff;
+}

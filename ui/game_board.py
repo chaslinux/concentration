@@ -1,6 +1,7 @@
 import time
 import random
 import os
+import math
 import gi
 
 gi.require_version('Gtk', '3.0')
@@ -19,6 +20,11 @@ class Card:
         self.is_hidden = False
         self.svg_handle = None
         
+        # Flip Animation State
+        self.scale_x = 1.0          # 1.0 (full width) to 0.0 (edge-on flat)
+        self.animating = False
+        self.target_flipped = False # Desired state after reaching scale_x = 0
+        
         path = os.path.join(config.ICON_DIR, icon_name)
         if os.path.exists(path):
             try:
@@ -35,12 +41,13 @@ class ConcentrationBoard(Gtk.Box):
         self.time_remaining = config.GAME_TIME
         self.selected_cards = []
         self.focused_index = 0
+        self.hovered_index = None
         self.lock_input = False
         self.flip_timer_id = None
         
         # Grid margins & gaps
         self.margin_pad = 20
-        self.card_gap = 8
+        self.card_gap = 10
         
         # Random card selection
         random.seed(time.time())
@@ -50,7 +57,7 @@ class ConcentrationBoard(Gtk.Box):
         
         self.cards = [Card(icon, i) for i, icon in enumerate(card_icons)]
         
-        # Header UI Bar (Dark Forest Contrast Header)
+        # Header UI Bar
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
         header.get_style_context().add_class("header-box")
         
@@ -74,11 +81,18 @@ class ConcentrationBoard(Gtk.Box):
         # Drawing Area
         self.drawing_area = Gtk.DrawingArea()
         self.drawing_area.set_can_focus(True)
-        self.drawing_area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.KEY_PRESS_MASK)
+        self.drawing_area.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK | 
+            Gdk.EventMask.KEY_PRESS_MASK |
+            Gdk.EventMask.POINTER_MOTION_MASK |
+            Gdk.EventMask.LEAVE_NOTIFY_MASK
+        )
         
         self.drawing_area.connect("draw", self.on_draw)
         self.drawing_area.connect("button-press-event", self.on_click)
         self.drawing_area.connect("key-press-event", self.on_key_press)
+        self.drawing_area.connect("motion-notify-event", self.on_mouse_move)
+        self.drawing_area.connect("leave-notify-event", self.on_mouse_leave)
         
         self.pack_start(self.drawing_area, True, True, 0)
         
@@ -117,6 +131,38 @@ class ConcentrationBoard(Gtk.Box):
             self.end_game("Time's Up!")
             return False
 
+    def animate_card_flip(self, card, target_state, on_complete_cb=None):
+        """Animates card flipping using a 3D-like width scale transformation."""
+        card.animating = True
+        card.target_flipped = target_state
+        step_speed = 0.15  # Scale step speed per frame (~16ms)
+
+        def step():
+            if not card.animating:
+                return False
+
+            if card.is_flipped != card.target_flipped:
+                # Collapsing phase
+                card.scale_x -= step_speed
+                if card.scale_x <= 0.0:
+                    card.scale_x = 0.0
+                    card.is_flipped = card.target_flipped  # Swap face state at peak of compression
+            else:
+                # Expanding phase
+                card.scale_x += step_speed
+                if card.scale_x >= 1.0:
+                    card.scale_x = 1.0
+                    card.animating = False
+                    self.drawing_area.queue_draw()
+                    if on_complete_cb:
+                        on_complete_cb()
+                    return False
+
+            self.drawing_area.queue_draw()
+            return True
+
+        GLib.timeout_add(16, step)
+
     def on_draw(self, widget, cr):
         alloc = widget.get_allocation()
         
@@ -135,12 +181,26 @@ class ConcentrationBoard(Gtk.Box):
                 continue
 
             r, c = divmod(i, config.COLS)
-            x = self.margin_pad + (c * card_w) + (self.card_gap / 2)
-            y = self.margin_pad + (r * card_h) + (self.card_gap / 2)
-            w = card_w - self.card_gap
+            base_x = self.margin_pad + (c * card_w) + (self.card_gap / 2)
+            base_y = self.margin_pad + (r * card_h) + (self.card_gap / 2)
+            full_w = card_w - self.card_gap
             h = card_h - self.card_gap
-            
-            cr.rectangle(x, y, w, h)
+
+            # Compute horizontal scale transformation around card center
+            curr_w = full_w * max(0.01, card.scale_x)
+            offset_x = (full_w - curr_w) / 2.0
+            x = base_x + offset_x
+
+            # Rounded Rectangle Path helper
+            def draw_rounded_card(cx, cy, cw, ch, radius=6):
+                cr.new_sub_path()
+                cr.arc(cx + cw - radius, cy + radius, radius, -math.pi/2, 0)
+                cr.arc(cx + cw - radius, cy + ch - radius, radius, 0, math.pi/2)
+                cr.arc(cx + radius, cy + ch - radius, radius, math.pi/2, math.pi)
+                cr.arc(cx + radius, cy + radius, radius, math.pi, 3*math.pi/2)
+                cr.close_path()
+
+            draw_rounded_card(x, base_y, curr_w, h)
             
             if card.is_flipped or card.is_matched:
                 # Yellow Front Face
@@ -151,86 +211,124 @@ class ConcentrationBoard(Gtk.Box):
                 cr.set_line_width(2)
                 cr.stroke()
                 
-                if card.svg_handle:
+                if card.svg_handle and curr_w > 10:
                     cr.save()
                     dim_obj = card.svg_handle.get_dimensions()
                     svg_w, svg_h = dim_obj.width, dim_obj.height
                     
                     if svg_w > 0 and svg_h > 0:
-                        scale = min(w / svg_w, h / svg_h) * 0.85
+                        scale = min(curr_w / svg_w, h / svg_h) * 0.80
                         rendered_w = svg_w * scale
                         rendered_h = svg_h * scale
                         
-                        offset_x = x + (w - rendered_w) / 2.0
-                        offset_y = y + (h - rendered_h) / 2.0
+                        img_x = x + (curr_w - rendered_w) / 2.0
+                        img_y = base_y + (h - rendered_h) / 2.0
                         
-                        cr.translate(offset_x, offset_y)
+                        cr.translate(img_x, img_y)
                         cr.scale(scale, scale)
                         card.svg_handle.render_cairo(cr)
                     cr.restore()
             else:
                 # Forest green back face
-                cr.set_source_rgb(0.15, 0.55, 0.30)
+                is_hovered = (i == self.hovered_index)
+                bg_r, bg_g, bg_b = (0.18, 0.62, 0.35) if is_hovered else (0.15, 0.55, 0.30)
+                
+                cr.set_source_rgb(bg_r, bg_g, bg_b)
                 cr.fill_preserve()
                 
                 cr.save()
                 cr.clip()
                 cr.set_source_rgba(0.08, 0.35, 0.18, 0.6)
                 cr.set_line_width(2)
-                for line_x in range(int(x - h), int(x + w + h), 12):
-                    cr.move_to(line_x, y)
-                    cr.line_to(line_x + h, y + h)
+                for line_x in range(int(x - h), int(x + curr_w + h), 12):
+                    cr.move_to(line_x, base_y)
+                    cr.line_to(line_x + h, base_y + h)
                 cr.stroke()
                 cr.restore()
                 
-                cr.set_source_rgb(0.10, 0.40, 0.20)
-                cr.set_line_width(2)
+                border_r, border_g, border_b = (0.25, 0.75, 0.45) if is_hovered else (0.10, 0.40, 0.20)
+                cr.set_source_rgb(border_r, border_g, border_b)
+                cr.set_line_width(2 if not is_hovered else 3)
                 cr.stroke()
-            
+
+            # Focused / Hover Outline Accent
             if i == self.focused_index and not card.is_hidden:
-                cr.rectangle(x - 2, y - 2, w + 4, h + 4)
+                draw_rounded_card(x - 2, base_y - 2, curr_w + 4, h + 4, radius=8)
                 cr.set_source_rgb(1.0, 1.0, 1.0)
-                cr.set_line_width(3)
+                cr.set_line_width(2.5)
                 cr.stroke()
 
     def select_card(self, index):
         if self.lock_input:
             return
         card = self.cards[index]
-        if card.is_flipped or card.is_matched or card.is_hidden:
+        if card.is_flipped or card.is_matched or card.is_hidden or card.animating:
             return
             
-        card.is_flipped = True
         self.selected_cards.append(card)
-        self.drawing_area.queue_draw()
-        
         if len(self.selected_cards) == 2:
             self.lock_input = True
-            c1, c2 = self.selected_cards
-            if c1.icon_name == c2.icon_name:
-                c1.is_matched = True
-                c2.is_matched = True
-                self.update_score(100 + self.time_remaining)
-                
-                c1.is_hidden = True
-                c2.is_hidden = True
-                self.selected_cards = []
-                self.lock_input = False
-                self.drawing_area.queue_draw()
 
-                if all(c.is_hidden for c in self.cards):
-                    GLib.idle_add(self.end_game, "🎉 YOU WIN!")
-            else:
-                self.flip_timer_id = GLib.timeout_add_seconds(config.FLIP_TIMEOUT, self.unflip_selected)
+        def on_flip_done():
+            if len(self.selected_cards) == 2:
+                c1, c2 = self.selected_cards
+                if c1.icon_name == c2.icon_name:
+                    c1.is_matched = True
+                    c2.is_matched = True
+                    self.update_score(100 + self.time_remaining)
+                    
+                    c1.is_hidden = True
+                    c2.is_hidden = True
+                    self.selected_cards = []
+                    self.lock_input = False
+                    self.drawing_area.queue_draw()
+
+                    if all(c.is_hidden for c in self.cards):
+                        GLib.idle_add(self.end_game, "🎉 YOU WIN!")
+                else:
+                    self.flip_timer_id = GLib.timeout_add_seconds(config.FLIP_TIMEOUT, self.unflip_selected)
+
+        self.animate_card_flip(card, target_state=True, on_complete_cb=on_flip_done)
 
     def unflip_selected(self):
-        for card in self.selected_cards:
-            card.is_flipped = False
-        self.selected_cards = []
-        self.lock_input = False
-        self.drawing_area.queue_draw()
+        c1, c2 = self.selected_cards[0], self.selected_cards[1]
+        
+        def on_second_unflip_complete():
+            self.selected_cards = []
+            self.lock_input = False
+            self.drawing_area.queue_draw()
+
+        self.animate_card_flip(c1, target_state=False)
+        self.animate_card_flip(c2, target_state=False, on_complete_cb=on_second_unflip_complete)
         self.flip_timer_id = None
         return False
+
+    def on_mouse_move(self, widget, event):
+        alloc = widget.get_allocation()
+        grid_w = alloc.width - (2 * self.margin_pad)
+        grid_h = alloc.height - (2 * self.margin_pad)
+        
+        click_x = event.x - self.margin_pad
+        click_y = event.y - self.margin_pad
+        
+        old_hover = self.hovered_index
+        if 0 <= click_x < grid_w and 0 <= click_y < grid_h:
+            card_w = grid_w / config.COLS
+            card_h = grid_h / config.ROWS
+            c = int(click_x // card_w)
+            r = int(click_y // card_h)
+            idx = r * config.COLS + c
+            self.hovered_index = idx if 0 <= idx < config.TOTAL_CARDS else None
+        else:
+            self.hovered_index = None
+
+        if old_hover != self.hovered_index:
+            self.drawing_area.queue_draw()
+
+    def on_mouse_leave(self, widget, event):
+        if self.hovered_index is not None:
+            self.hovered_index = None
+            self.drawing_area.queue_draw()
 
     def on_click(self, widget, event):
         alloc = widget.get_allocation()

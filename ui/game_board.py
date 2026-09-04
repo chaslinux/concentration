@@ -10,6 +10,7 @@ from gi.repository import Gtk, Gdk, GLib, Rsvg
 
 import config
 from scores import save_high_score
+from audio import sound
 
 class Card:
     def __init__(self, icon_name, index):
@@ -133,22 +134,21 @@ class ConcentrationBoard(Gtk.Box):
 
     def animate_card_flip(self, card, target_state, on_complete_cb=None):
         """Animates card flipping using a 3D-like width scale transformation."""
+        sound.play("flip")  # Play flip sound effect
         card.animating = True
         card.target_flipped = target_state
-        step_speed = 0.15  # Scale step speed per frame (~16ms)
+        step_speed = 0.15
 
         def step():
             if not card.animating:
                 return False
 
             if card.is_flipped != card.target_flipped:
-                # Collapsing phase
                 card.scale_x -= step_speed
                 if card.scale_x <= 0.0:
                     card.scale_x = 0.0
-                    card.is_flipped = card.target_flipped  # Swap face state at peak of compression
+                    card.is_flipped = card.target_flipped
             else:
-                # Expanding phase
                 card.scale_x += step_speed
                 if card.scale_x >= 1.0:
                     card.scale_x = 1.0
@@ -186,12 +186,10 @@ class ConcentrationBoard(Gtk.Box):
             full_w = card_w - self.card_gap
             h = card_h - self.card_gap
 
-            # Compute horizontal scale transformation around card center
             curr_w = full_w * max(0.01, card.scale_x)
             offset_x = (full_w - curr_w) / 2.0
             x = base_x + offset_x
 
-            # Rounded Rectangle Path helper
             def draw_rounded_card(cx, cy, cw, ch, radius=6):
                 cr.new_sub_path()
                 cr.arc(cx + cw - radius, cy + radius, radius, -math.pi/2, 0)
@@ -273,6 +271,7 @@ class ConcentrationBoard(Gtk.Box):
             if len(self.selected_cards) == 2:
                 c1, c2 = self.selected_cards
                 if c1.icon_name == c2.icon_name:
+                    sound.play("match")  # Play match success sound
                     c1.is_matched = True
                     c2.is_matched = True
                     self.update_score(100 + self.time_remaining)
@@ -284,8 +283,10 @@ class ConcentrationBoard(Gtk.Box):
                     self.drawing_area.queue_draw()
 
                     if all(c.is_hidden for c in self.cards):
+                        sound.play("win")  # Play win sound
                         GLib.idle_add(self.end_game, "🎉 YOU WIN!")
                 else:
+                    sound.play("mismatch")  # Play mismatch sound
                     self.flip_timer_id = GLib.timeout_add_seconds(config.FLIP_TIMEOUT, self.unflip_selected)
 
         self.animate_card_flip(card, target_state=True, on_complete_cb=on_flip_done)

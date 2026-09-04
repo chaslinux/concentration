@@ -54,3 +54,10 @@ dialog {
 dialog label {
     color: #ffffff;
 }
+
+/* Header Strip Styling */
+.header-box {
+    background-color: #0f2116;
+    border-bottom: 2px solid #23482e;
+    padding: 10px 15px;
+}

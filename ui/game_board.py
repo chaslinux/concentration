@@ -28,7 +28,7 @@ class Card:
 
 class ConcentrationBoard(Gtk.Box):
     def __init__(self, main_window):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.main_window = main_window
         
         self.score = 0
@@ -50,11 +50,9 @@ class ConcentrationBoard(Gtk.Box):
         
         self.cards = [Card(icon, i) for i, icon in enumerate(card_icons)]
         
-        # Header UI Bar
+        # Header UI Bar (Dark Forest Contrast Header)
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
-        header.set_margin_left(15)
-        header.set_margin_right(15)
-        header.set_margin_top(10)
+        header.get_style_context().add_class("header-box")
         
         # Exit Game Button
         btn_exit = Gtk.Button(label=" Exit Game ")

@@ -1,8 +1,17 @@
 import os
 
 ICON_DIR = "/usr/share/icons/Papirus/128x128/apps"
-SCORE_FILE = os.path.expanduser("~/.concentration_scores.enc")
-SECRET_KEY_FILE = os.path.expanduser("~/.concentration.key")
+XDG_DATA_HOME = os.environ.get(
+    "XDG_DATA_HOME",
+    os.path.expanduser("~/.local/share")
+)
+
+DATA_DIR = os.path.join(XDG_DATA_HOME, "concentration")
+os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
+os.chmod(DATA_DIR, 0o700)
+
+SCORE_FILE = os.path.join(DATA_DIR, "scores.enc")
+SECRET_KEY_FILE = os.path.join(DATA_DIR, "key")
 
 ROWS = 4
 COLS = 6

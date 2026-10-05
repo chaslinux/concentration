@@ -8,6 +8,7 @@ def get_or_create_key():
         key = Fernet.generate_key()
         with open(config.SECRET_KEY_FILE, "wb") as f:
             f.write(key)
+        os.chmod(config.SECRET_KEY_FILE, 0o600)
         return key
     with open(config.SECRET_KEY_FILE, "rb") as f:
         return f.read()
@@ -35,3 +36,4 @@ def save_high_score(initials, score):
     encrypted_data = fernet.encrypt(json.dumps(scores).encode("utf-8"))
     with open(config.SCORE_FILE, "wb") as f:
         f.write(encrypted_data)
+    os.chmod(config.SCORE_FILE, 0o600)

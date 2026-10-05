@@ -1,5 +1,0 @@
-#!/bin/sh
-
-cd /usr/lib/concentration || exit 1
-exec /usr/bin/python3 /usr/lib/concentration/main.py "$@"
-

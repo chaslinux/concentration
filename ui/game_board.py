@@ -28,12 +28,18 @@ class Card:
         self.target_flipped = False # Desired state after reaching scale_x = 0
 
         path = os.path.join(config.ICON_DIR, icon_name)
-        if os.path.exists(path):
-            try:
-                self.svg_handle = Rsvg.Handle.new_from_file(path)
-            except Exception:
-                self.svg_handle = None
 
+        try:
+            self.svg_handle = Rsvg.Handle.new_from_file(
+                os.path.abspath(path)
+            )
+        except Exception as exc:
+            self.svg_handle = None
+            print(
+                f"WARNING: Could not load icon "
+                f"'{icon_name}' at '{path}': {exc}",
+                flush=True
+            )
 
 class ConcentrationBoard(Gtk.Box):
     def __init__(self, main_window):
@@ -114,7 +120,9 @@ class ConcentrationBoard(Gtk.Box):
 
         # Start Countdown Loop
         self.timer_source_id = GLib.timeout_add_seconds(1, self.on_tick)
-        self.drawing_area.grab_focus()
+        GLib.idle_add(self.drawing_area.grab_focus)
+        self.focused_index = 0
+        self.drawing_area.queue_draw()
 
     def cleanup_timers(self):
         if hasattr(self, 'timer_source_id') and self.timer_source_id:
@@ -219,13 +227,42 @@ class ConcentrationBoard(Gtk.Box):
         cr.set_source_rgb(0.08, 0.17, 0.11)
         cr.paint()
 
+        def draw_rounded_card(cx, cy, cw, ch, radius=6):
+            cr.new_sub_path()
+            cr.arc(
+                cx + cw - radius, cy + radius,
+                radius, -math.pi / 2, 0
+            )
+            cr.arc(
+                cx + cw - radius, cy + ch - radius,
+                radius, 0, math.pi / 2
+            )
+            cr.arc(
+                cx + radius, cy + ch - radius,
+                radius, math.pi / 2, math.pi
+            )
+            cr.arc(
+                cx + radius, cy + radius,
+                radius, math.pi, 3 * math.pi / 2
+            )
+            cr.close_path()
+
+        # Draw visible cards.
         for i, card in enumerate(self.cards):
             if card.is_hidden:
                 continue
 
             r, c = divmod(i, config.COLS)
-            base_x = self.margin_pad + (c * card_w) + (self.card_gap / 2)
-            base_y = self.margin_pad + (r * card_h) + (self.card_gap / 2)
+            base_x = (
+                self.margin_pad
+                + c * card_w
+                + self.card_gap / 2
+            )
+            base_y = (
+                self.margin_pad
+                + r * card_h
+                + self.card_gap / 2
+            )
             full_w = card_w - self.card_gap
             h = card_h - self.card_gap
 
@@ -233,42 +270,10 @@ class ConcentrationBoard(Gtk.Box):
             offset_x = (full_w - curr_w) / 2.0
             x = base_x + offset_x
 
-            def draw_rounded_card(cx, cy, cw, ch, radius=6):
-                cr.new_sub_path()
-                cr.arc(
-                    cx + cw - radius,
-                    cy + radius,
-                    radius,
-                    -math.pi / 2,
-                    0
-                )
-                cr.arc(
-                    cx + cw - radius,
-                    cy + ch - radius,
-                    radius,
-                    0,
-                    math.pi / 2
-                )
-                cr.arc(
-                    cx + radius,
-                    cy + ch - radius,
-                    radius,
-                    math.pi / 2,
-                    math.pi
-                )
-                cr.arc(
-                    cx + radius,
-                    cy + radius,
-                    radius,
-                    math.pi,
-                    3 * math.pi / 2
-                )
-                cr.close_path()
-
             draw_rounded_card(x, base_y, curr_w, h)
 
             if card.is_flipped or card.is_matched:
-                # Yellow Front Face
+                # Yellow front face
                 cr.set_source_rgb(0.95, 0.61, 0.07)
                 cr.fill_preserve()
 
@@ -328,26 +333,36 @@ class ConcentrationBoard(Gtk.Box):
                     else (0.10, 0.40, 0.20)
                 )
 
-                cr.set_source_rgb(
-                    border_r,
-                    border_g,
-                    border_b
-                )
+                cr.set_source_rgb(border_r, border_g, border_b)
                 cr.set_line_width(2 if not is_hovered else 3)
                 cr.stroke()
 
-            # Focused / Hover Outline Accent
-            if i == self.focused_index and not card.is_hidden:
-                draw_rounded_card(
-                    x - 2,
-                    base_y - 2,
-                    curr_w + 4,
-                    h + 4,
-                    radius=8
-                )
-                cr.set_source_rgb(1.0, 1.0, 1.0)
-                cr.set_line_width(2.5)
-                cr.stroke()
+        # Draw keyboard focus AFTER all cards, including hidden positions.
+        r, c = divmod(self.focused_index, config.COLS)
+
+        focus_x = (
+            self.margin_pad
+            + c * card_w
+            + self.card_gap / 2
+        )
+        focus_y = (
+            self.margin_pad
+            + r * card_h
+            + self.card_gap / 2
+        )
+        focus_w = card_w - self.card_gap
+        focus_h = card_h - self.card_gap
+
+        draw_rounded_card(
+            focus_x - 2,
+            focus_y - 2,
+            focus_w + 4,
+            focus_h + 4,
+            radius=8
+        )
+        cr.set_source_rgb(1.0, 1.0, 1.0)
+        cr.set_line_width(2.5)
+        cr.stroke()
 
     def select_card(self, index):
         if self.lock_input:
@@ -491,16 +506,23 @@ class ConcentrationBoard(Gtk.Box):
             r = int(click_y // card_h)
             idx = r * config.COLS + c
 
-            if 0 <= idx < config.TOTAL_CARDS:
-                self.focused_index = idx
-                self.select_card(idx)
+        if 0 <= idx < config.TOTAL_CARDS:
+            self.drawing_area.grab_focus()
+            self.focused_index = idx
+            self.select_card(idx)
+            self.drawing_area.queue_draw()
 
     def on_key_press(self, widget, event):
         keyval = event.keyval
-        r, c = divmod(
-            self.focused_index,
-            config.COLS
-        )
+
+        # Escape exits fullscreen without ending the current game.
+        if keyval == Gdk.KEY_Escape:
+            if self.main_window.fullscreen_active:
+                self.main_window.unfullscreen()
+            return True
+
+        old_index = self.focused_index
+        r, c = divmod(old_index, config.COLS)
 
         if keyval == Gdk.KEY_Left and c > 0:
             self.focused_index -= 1
@@ -514,10 +536,23 @@ class ConcentrationBoard(Gtk.Box):
         elif keyval == Gdk.KEY_Down and r < config.ROWS - 1:
             self.focused_index += config.COLS
 
-        elif keyval in (Gdk.KEY_Return, Gdk.KEY_space):
+        elif keyval in (
+            Gdk.KEY_Return,
+            Gdk.KEY_KP_Enter,
+            Gdk.KEY_space,
+            Gdk.KEY_ISO_Enter,
+        ):
             self.select_card(self.focused_index)
+            self.drawing_area.queue_draw()
+            return True
 
-        self.drawing_area.queue_draw()
+        else:
+            return False
+
+        if self.focused_index != old_index:
+            self.drawing_area.queue_draw()
+
+        return True
 
     def end_game(self, title_text):
         self.cleanup_timers()

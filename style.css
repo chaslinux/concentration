@@ -61,3 +61,6 @@ dialog label {
     border-bottom: 2px solid #23482e;
     padding: 10px 15px;
 }
+
+/* Keyboard Focus — visible when navigating with the keyboard */
+button:focus { border-color: #ffffff; }

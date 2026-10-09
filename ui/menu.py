@@ -72,6 +72,21 @@ class MenuView(Gtk.Box):
         btn_quit.connect("clicked", self.on_quit_clicked)
         btn_box.pack_start(btn_quit, False, False, 0)
 
+        # Keep references to the menu buttons in navigation order.
+        self.menu_buttons = [
+            btn_play,
+            btn_fullscreen,
+            btn_scores,
+            btn_quit,
+        ]
+
+        # Let the menu handle arrow-key navigation.
+        for button in self.menu_buttons:
+            button.set_can_focus(True)
+
+        self.menu_buttons[0].grab_focus()
+        self.connect("key-press-event", self.on_key_press)
+
         content_box.pack_start(btn_box, False, False, 10)
 
         overlay.add_overlay(content_box)
@@ -123,3 +138,27 @@ class MenuView(Gtk.Box):
 
     def on_quit_clicked(self, button):
         Gtk.main_quit()
+
+    def on_key_press(self, widget, event):
+        if event.keyval not in (Gdk.KEY_Up, Gdk.KEY_Down):
+            return False
+
+        focused_widget = self.get_toplevel().get_focus()
+
+        if focused_widget not in self.menu_buttons:
+            self.menu_buttons[0].grab_focus()
+            return True
+
+        current_index = self.menu_buttons.index(focused_widget)
+
+        if event.keyval == Gdk.KEY_Down:
+            next_index = (
+                current_index + 1
+            ) % len(self.menu_buttons)
+        else:
+            next_index = (
+                current_index - 1
+            ) % len(self.menu_buttons)
+
+        self.menu_buttons[next_index].grab_focus()
+        return True

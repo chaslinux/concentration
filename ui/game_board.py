@@ -337,32 +337,33 @@ class ConcentrationBoard(Gtk.Box):
                 cr.set_line_width(2 if not is_hovered else 3)
                 cr.stroke()
 
-        # Draw keyboard focus AFTER all cards, including hidden positions.
-        r, c = divmod(self.focused_index, config.COLS)
+        # Draw keyboard focus only while the board has keyboard focus.
+        if self.drawing_area.has_focus():
+            r, c = divmod(self.focused_index, config.COLS)
 
-        focus_x = (
-            self.margin_pad
-            + c * card_w
-            + self.card_gap / 2
-        )
-        focus_y = (
-            self.margin_pad
-            + r * card_h
-            + self.card_gap / 2
-        )
-        focus_w = card_w - self.card_gap
-        focus_h = card_h - self.card_gap
+            focus_x = (
+                self.margin_pad
+                + c * card_w
+                + self.card_gap / 2
+            )
+            focus_y = (
+                self.margin_pad
+                + r * card_h
+                + self.card_gap / 2
+            )
+            focus_w = card_w - self.card_gap
+            focus_h = card_h - self.card_gap
 
-        draw_rounded_card(
-            focus_x - 2,
-            focus_y - 2,
-            focus_w + 4,
-            focus_h + 4,
-            radius=8
-        )
-        cr.set_source_rgb(1.0, 1.0, 1.0)
-        cr.set_line_width(2.5)
-        cr.stroke()
+            draw_rounded_card(
+                focus_x - 2,
+                focus_y - 2,
+                focus_w + 4,
+                focus_h + 4,
+                radius=8
+            )
+            cr.set_source_rgb(1.0, 1.0, 1.0)
+            cr.set_line_width(2.5)
+            cr.stroke()
 
     def select_card(self, index):
         if self.lock_input:

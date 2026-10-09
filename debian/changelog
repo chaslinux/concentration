@@ -1,3 +1,9 @@
+concentration (1.0.0-4) noble; urgency=medium
+
+  * Improve keyboard navigation and card focus handling.
+
+ -- chaslinux <chaslinux@gmail.com>  Fri, 09 Oct 2026 16:23:42 -0400
+
 concentration (1.0.1-1) noble; urgency=medium
 
   * Release updated game with improved keyboard navigation and focus

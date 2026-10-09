@@ -1,0 +1,453 @@
+Description: <short summary of the patch>
+ TODO: Put a short summary on the line above and replace this paragraph
+ with a longer explanation of this change. Complete the meta-information
+ with other relevant fields (see below for details). To make it easier, the
+ information below has been extracted from the changelog. Adjust it or drop
+ it.
+ .
+ concentration (1.0.0-4) noble; urgency=medium
+ .
+   * Improve keyboard navigation and card focus handling.
+Author: chaslinux <chaslinux@gmail.com>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout https://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: (upstream|backport|vendor|other), (<patch-url>|commit:<commit-id>)
+Bug: <upstream-bugtracker-url>
+Bug-Debian: https://bugs.debian.org/<bugnumber>
+Bug-Ubuntu: https://launchpad.net/bugs/<bugnumber>
+Forwarded: (no|not-needed|<patch-forwarded-url>)
+Applied-Upstream: <version>, (<commit-url>|commit:<commid-id>)
+Reviewed-By: <name and email of someone who approved/reviewed the patch>
+Last-Update: 2026-10-09
+
+--- concentration-1.0.0.orig/config.py
++++ concentration-1.0.0/config.py
+@@ -39,7 +39,7 @@ AVAILABLE_ICONS = [
+     "grim-fandango-remastered.svg", "half-life.svg", "hedgewars.svg", "helltaker.svg", "hollow-knight.svg",
+     "hoppscotch.svg", "hypnospace-outlaw.svg", "i2pd.svg", "ibus-typing-booster.svg", "indivisible.svg",
+     "jmonkeyengine.svg", "kapman.svg", "kasteroids.svg", "kawanime.svg", "kerbal-space-program.svg",
+-    "kwybase.svg", "kgeography.svg", "kitty.svg", "kmahjongg.svg", "knavalbattle.svg",
++    "keybase.svg", "kgeography.svg", "kitty.svg", "kmahjongg.svg", "knavalbattle.svg",
+     "koala.svg", "knights-game.svg", "konquest.svg", "kspaceduel.svg", "kturtle.svg",
+     "league-of-legends.svg", "lightzone.svg", "limbo.svg", "little-inferno.svg", "lovely-planet-2.svg",
+     "lutris.svg", "machinarium.svg", "magicka-2.svg", "magictree.svg", "makagiga.svg",
+@@ -49,12 +49,12 @@ AVAILABLE_ICONS = [
+     "octodad-dadliest-catch.svg", "octopi.svg", "oolite.svg", "openclonk.svg", "opentyrian.svg",
+     "openxcom.svg", "oxygen-not-included.svg", "papagayong.svg", "pekka-kana-2.svg", "peruse.svg",
+     "phantompeer.svg", "pingus.svg", "pixel-piracy.svg", "playonlinux.svg", "pokerth.svg",
+-    "popcorn-time.svg", "powermanga.svg", "pr-boom-plus.svg", "quake3.svg", "rememberthemilk.svg",
++    "popcorn-time.svg", "powermanga.svg", "prboom-plus.svg", "quake3.svg", "rememberthemilk.svg",
+     "renpy.svg", "restic.svg", "retroarch.svg", "retropie.svg", "rogue-legacy.svg",
+     "rpg-maker-mv.svg", "sakura-dungeon.svg", "sauerbraten.svg", "scratch.svg", "scummvm.svg",
+     "skullgirls.svg", "slay-the-spire.svg", "slime-rancher.svg", "smc.svg", "smokinguns.svg",
+-    "smw.svg", "solarus.svg", "soma.svg", "space-engineers.svg", "sparrow.svg",
+-    "spek.svg", "stardew-valley.svg", "stealth-bastard.deluxe.svg", "steam.svg", "stella.svg",
++    "smw.svg", "solarus.svg", "soma.svg", "space-engineers.svg", "Sparrow.svg",
++    "spek.svg", "stardew-valley.svg", "stealth-bastard-deluxe.svg", "steam.svg", "stella.svg",
+     "subsurface-icon.svg", "supertux.svg", "supertuxkart.svg", "teeworlds.svg", "teslagrad.svg",
+     "the-binding-of-isaac-rebirth.svg", "textosaurus.svg", "the-cave.svg", "the-escapists-2.svg", "the-swapper.svg",
+     "the-witcher.svg", "tibia.svg", "toki-tori.svg", "trine3.svg", "tsc.svg",
+--- concentration-1.0.0.orig/main.py
++++ concentration-1.0.0/main.py
+@@ -10,33 +10,69 @@ from ui.menu import MenuView
+ from ui.game_board import ConcentrationBoard
+ from ui.high_scores import HighScoresView
+ 
++
+ def load_css():
+     css_path = os.path.join(os.path.dirname(__file__), 'style.css')
+     if os.path.exists(css_path):
+         provider = Gtk.CssProvider()
+         provider.load_from_path(css_path)
+-        
++
+         screen = Gdk.Screen.get_default()
+         priority = Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+-        Gtk.StyleContext.add_provider_for_screen(screen, provider, priority)
++        Gtk.StyleContext.add_provider_for_screen(
++            screen, provider, priority
++        )
++
+ 
+ class MainWindow(Gtk.Window):
+     def __init__(self):
+         super().__init__(title="Concentration")
+         self.set_default_size(800, 600)
+         self.set_position(Gtk.WindowPosition.CENTER)
++        self.fullscreen_active = False
++
+         self.connect("destroy", Gtk.main_quit)
+-        
+-        # Renamed self.container -> self.main_box to avoid reserved attribute name
+-        self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
++        self.connect("key-press-event", self.on_key_press)
++        self.connect("window-state-event", self.on_window_state_event)
++
++        self.main_box = Gtk.Box(
++            orientation=Gtk.Orientation.VERTICAL,
++            spacing=0
++        )
+         self.add(self.main_box)
+-        
++
+         self.show_menu()
+ 
+     def clear_container(self):
+         for child in self.main_box.get_children():
+             self.main_box.remove(child)
+ 
++    def toggle_fullscreen(self):
++        if self.fullscreen_active:
++            self.unfullscreen()
++        else:
++            self.fullscreen()
++
++    def on_window_state_event(self, widget, event):
++        self.fullscreen_active = bool(
++            event.new_window_state & Gdk.WindowState.FULLSCREEN
++        )
++        return False
++
++    def on_key_press(self, widget, event):
++        if event.keyval == Gdk.KEY_F11:
++            self.toggle_fullscreen()
++            return True
++
++        if (
++            event.keyval == Gdk.KEY_Escape
++            and self.fullscreen_active
++        ):
++            self.unfullscreen()
++            return True
++
++        return False
++
+     def show_menu(self):
+         self.clear_container()
+         menu_view = MenuView(self)
+@@ -55,6 +91,7 @@ class MainWindow(Gtk.Window):
+         self.main_box.pack_start(scores_view, True, True, 0)
+         self.show_all()
+ 
++
+ if __name__ == "__main__":
+     load_css()
+     app = MainWindow()
+--- concentration-1.0.0.orig/style.css
++++ concentration-1.0.0/style.css
+@@ -61,3 +61,6 @@ dialog label {
+     border-bottom: 2px solid #23482e;
+     padding: 10px 15px;
+ }
++
++/* Keyboard Focus — visible when navigating with the keyboard */
++button:focus { border-color: #ffffff; }
+--- concentration-1.0.0.orig/ui/game_board.py
++++ concentration-1.0.0/ui/game_board.py
+@@ -28,12 +28,18 @@ class Card:
+         self.target_flipped = False # Desired state after reaching scale_x = 0
+ 
+         path = os.path.join(config.ICON_DIR, icon_name)
+-        if os.path.exists(path):
+-            try:
+-                self.svg_handle = Rsvg.Handle.new_from_file(path)
+-            except Exception:
+-                self.svg_handle = None
+ 
++        try:
++            self.svg_handle = Rsvg.Handle.new_from_file(
++                os.path.abspath(path)
++            )
++        except Exception as exc:
++            self.svg_handle = None
++            print(
++                f"WARNING: Could not load icon "
++                f"'{icon_name}' at '{path}': {exc}",
++                flush=True
++            )
+ 
+ class ConcentrationBoard(Gtk.Box):
+     def __init__(self, main_window):
+@@ -114,7 +120,9 @@ class ConcentrationBoard(Gtk.Box):
+ 
+         # Start Countdown Loop
+         self.timer_source_id = GLib.timeout_add_seconds(1, self.on_tick)
+-        self.drawing_area.grab_focus()
++        GLib.idle_add(self.drawing_area.grab_focus)
++        self.focused_index = 0
++        self.drawing_area.queue_draw()
+ 
+     def cleanup_timers(self):
+         if hasattr(self, 'timer_source_id') and self.timer_source_id:
+@@ -219,13 +227,42 @@ class ConcentrationBoard(Gtk.Box):
+         cr.set_source_rgb(0.08, 0.17, 0.11)
+         cr.paint()
+ 
++        def draw_rounded_card(cx, cy, cw, ch, radius=6):
++            cr.new_sub_path()
++            cr.arc(
++                cx + cw - radius, cy + radius,
++                radius, -math.pi / 2, 0
++            )
++            cr.arc(
++                cx + cw - radius, cy + ch - radius,
++                radius, 0, math.pi / 2
++            )
++            cr.arc(
++                cx + radius, cy + ch - radius,
++                radius, math.pi / 2, math.pi
++            )
++            cr.arc(
++                cx + radius, cy + radius,
++                radius, math.pi, 3 * math.pi / 2
++            )
++            cr.close_path()
++
++        # Draw visible cards.
+         for i, card in enumerate(self.cards):
+             if card.is_hidden:
+                 continue
+ 
+             r, c = divmod(i, config.COLS)
+-            base_x = self.margin_pad + (c * card_w) + (self.card_gap / 2)
+-            base_y = self.margin_pad + (r * card_h) + (self.card_gap / 2)
++            base_x = (
++                self.margin_pad
++                + c * card_w
++                + self.card_gap / 2
++            )
++            base_y = (
++                self.margin_pad
++                + r * card_h
++                + self.card_gap / 2
++            )
+             full_w = card_w - self.card_gap
+             h = card_h - self.card_gap
+ 
+@@ -233,42 +270,10 @@ class ConcentrationBoard(Gtk.Box):
+             offset_x = (full_w - curr_w) / 2.0
+             x = base_x + offset_x
+ 
+-            def draw_rounded_card(cx, cy, cw, ch, radius=6):
+-                cr.new_sub_path()
+-                cr.arc(
+-                    cx + cw - radius,
+-                    cy + radius,
+-                    radius,
+-                    -math.pi / 2,
+-                    0
+-                )
+-                cr.arc(
+-                    cx + cw - radius,
+-                    cy + ch - radius,
+-                    radius,
+-                    0,
+-                    math.pi / 2
+-                )
+-                cr.arc(
+-                    cx + radius,
+-                    cy + ch - radius,
+-                    radius,
+-                    math.pi / 2,
+-                    math.pi
+-                )
+-                cr.arc(
+-                    cx + radius,
+-                    cy + radius,
+-                    radius,
+-                    math.pi,
+-                    3 * math.pi / 2
+-                )
+-                cr.close_path()
+-
+             draw_rounded_card(x, base_y, curr_w, h)
+ 
+             if card.is_flipped or card.is_matched:
+-                # Yellow Front Face
++                # Yellow front face
+                 cr.set_source_rgb(0.95, 0.61, 0.07)
+                 cr.fill_preserve()
+ 
+@@ -328,26 +333,37 @@ class ConcentrationBoard(Gtk.Box):
+                     else (0.10, 0.40, 0.20)
+                 )
+ 
+-                cr.set_source_rgb(
+-                    border_r,
+-                    border_g,
+-                    border_b
+-                )
++                cr.set_source_rgb(border_r, border_g, border_b)
+                 cr.set_line_width(2 if not is_hovered else 3)
+                 cr.stroke()
+ 
+-            # Focused / Hover Outline Accent
+-            if i == self.focused_index and not card.is_hidden:
+-                draw_rounded_card(
+-                    x - 2,
+-                    base_y - 2,
+-                    curr_w + 4,
+-                    h + 4,
+-                    radius=8
+-                )
+-                cr.set_source_rgb(1.0, 1.0, 1.0)
+-                cr.set_line_width(2.5)
+-                cr.stroke()
++        # Draw keyboard focus only while the board has keyboard focus.
++        if self.drawing_area.has_focus():
++            r, c = divmod(self.focused_index, config.COLS)
++
++            focus_x = (
++                self.margin_pad
++                + c * card_w
++                + self.card_gap / 2
++            )
++            focus_y = (
++                self.margin_pad
++                + r * card_h
++                + self.card_gap / 2
++            )
++            focus_w = card_w - self.card_gap
++            focus_h = card_h - self.card_gap
++
++            draw_rounded_card(
++                focus_x - 2,
++                focus_y - 2,
++                focus_w + 4,
++                focus_h + 4,
++                radius=8
++            )
++            cr.set_source_rgb(1.0, 1.0, 1.0)
++            cr.set_line_width(2.5)
++            cr.stroke()
+ 
+     def select_card(self, index):
+         if self.lock_input:
+@@ -491,16 +507,23 @@ class ConcentrationBoard(Gtk.Box):
+             r = int(click_y // card_h)
+             idx = r * config.COLS + c
+ 
+-            if 0 <= idx < config.TOTAL_CARDS:
+-                self.focused_index = idx
+-                self.select_card(idx)
++        if 0 <= idx < config.TOTAL_CARDS:
++            self.drawing_area.grab_focus()
++            self.focused_index = idx
++            self.select_card(idx)
++            self.drawing_area.queue_draw()
+ 
+     def on_key_press(self, widget, event):
+         keyval = event.keyval
+-        r, c = divmod(
+-            self.focused_index,
+-            config.COLS
+-        )
++
++        # Escape exits fullscreen without ending the current game.
++        if keyval == Gdk.KEY_Escape:
++            if self.main_window.fullscreen_active:
++                self.main_window.unfullscreen()
++            return True
++
++        old_index = self.focused_index
++        r, c = divmod(old_index, config.COLS)
+ 
+         if keyval == Gdk.KEY_Left and c > 0:
+             self.focused_index -= 1
+@@ -514,10 +537,23 @@ class ConcentrationBoard(Gtk.Box):
+         elif keyval == Gdk.KEY_Down and r < config.ROWS - 1:
+             self.focused_index += config.COLS
+ 
+-        elif keyval in (Gdk.KEY_Return, Gdk.KEY_space):
++        elif keyval in (
++            Gdk.KEY_Return,
++            Gdk.KEY_KP_Enter,
++            Gdk.KEY_space,
++            Gdk.KEY_ISO_Enter,
++        ):
+             self.select_card(self.focused_index)
++            self.drawing_area.queue_draw()
++            return True
+ 
+-        self.drawing_area.queue_draw()
++        else:
++            return False
++
++        if self.focused_index != old_index:
++            self.drawing_area.queue_draw()
++
++        return True
+ 
+     def end_game(self, title_text):
+         self.cleanup_timers()
+--- concentration-1.0.0.orig/ui/menu.py
++++ concentration-1.0.0/ui/menu.py
+@@ -54,6 +54,14 @@ class MenuView(Gtk.Box):
+         btn_play.connect("clicked", self.on_play_clicked)
+         btn_box.pack_start(btn_play, False, False, 0)
+ 
++        btn_fullscreen = Gtk.Button(label="TOGGLE FULLSCREEN")
++        btn_fullscreen.set_size_request(220, 48)
++        btn_fullscreen.connect(
++            "clicked",
++            lambda button: self.main_window.toggle_fullscreen()
++        )
++        btn_box.pack_start(btn_fullscreen, False, False, 0)
++
+         btn_scores = Gtk.Button(label="HIGH SCORES")
+         btn_scores.set_size_request(220, 48)
+         btn_scores.connect("clicked", self.on_high_scores_clicked)
+@@ -64,6 +72,21 @@ class MenuView(Gtk.Box):
+         btn_quit.connect("clicked", self.on_quit_clicked)
+         btn_box.pack_start(btn_quit, False, False, 0)
+ 
++        # Keep references to the menu buttons in navigation order.
++        self.menu_buttons = [
++            btn_play,
++            btn_fullscreen,
++            btn_scores,
++            btn_quit,
++        ]
++
++        # Let the menu handle arrow-key navigation.
++        for button in self.menu_buttons:
++            button.set_can_focus(True)
++
++        self.menu_buttons[0].grab_focus()
++        self.connect("key-press-event", self.on_key_press)
++
+         content_box.pack_start(btn_box, False, False, 10)
+ 
+         overlay.add_overlay(content_box)
+@@ -115,3 +138,27 @@ class MenuView(Gtk.Box):
+ 
+     def on_quit_clicked(self, button):
+         Gtk.main_quit()
++
++    def on_key_press(self, widget, event):
++        if event.keyval not in (Gdk.KEY_Up, Gdk.KEY_Down):
++            return False
++
++        focused_widget = self.get_toplevel().get_focus()
++
++        if focused_widget not in self.menu_buttons:
++            self.menu_buttons[0].grab_focus()
++            return True
++
++        current_index = self.menu_buttons.index(focused_widget)
++
++        if event.keyval == Gdk.KEY_Down:
++            next_index = (
++                current_index + 1
++            ) % len(self.menu_buttons)
++        else:
++            next_index = (
++                current_index - 1
++            ) % len(self.menu_buttons)
++
++        self.menu_buttons[next_index].grab_focus()
++        return True

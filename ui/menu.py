@@ -54,6 +54,14 @@ class MenuView(Gtk.Box):
         btn_play.connect("clicked", self.on_play_clicked)
         btn_box.pack_start(btn_play, False, False, 0)
 
+        btn_fullscreen = Gtk.Button(label="TOGGLE FULLSCREEN")
+        btn_fullscreen.set_size_request(220, 48)
+        btn_fullscreen.connect(
+            "clicked",
+            lambda button: self.main_window.toggle_fullscreen()
+        )
+        btn_box.pack_start(btn_fullscreen, False, False, 0)
+
         btn_scores = Gtk.Button(label="HIGH SCORES")
         btn_scores.set_size_request(220, 48)
         btn_scores.connect("clicked", self.on_high_scores_clicked)

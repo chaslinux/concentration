@@ -1,3 +1,11 @@
+concentration (1.0.0-3) noble; urgency=medium
+
+  * Add fullscreen toggle to the main menu.
+  * Support F11 to toggle fullscreen and Escape to exit fullscreen.
+  * Preserve the game board and timer when changing display mode.
+
+-- chaslinux <chaslinux@gmail.com> Fri, 09 Oct 2026 13:52:06 -0400
+
 concentration (1.0.0-2) UNRELEASED; urgency=medium
 
   * Fix audio asset path for installed applications.
